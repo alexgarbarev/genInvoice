@@ -29,6 +29,7 @@ const (
 	kConfigDir         = ".genInvoice"
 	kInvoiceKey        = "invoice"
 	kDateKey           = "date"
+    kDueInDaysKey      = "dueInDays"
 	kReceivedUsdKey    = "received_usd"
 	kHourlyRateKey     = "hourly_rate"
 	kCurrencyKey       = "currency"
@@ -122,12 +123,12 @@ func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []in
 	hoursColumnIndex := findHoursColumnIndex(invoiceValues)
 
 	if amountColumnIndex == -1 {
-		err = errors.New(fmt.Sprintf("Can't find column with \"%v\".", kAmount))
+		err = errors.New(fmt.Sprintf("Can't find column with \"%v\".\n", kAmount))
 		return
 	}
 
 	if hoursColumnIndex == -1 {
-		log("Can't find column with \"%v\", will omit hours in total line.", kHours)
+		log("Can't find column with \"%v\", will omit hours in total line.\n", kHours)
 	}
 
 	total = 0.0
@@ -141,7 +142,7 @@ func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []in
 			amount := interfaceToFloat(line[amountColumnIndex])
 			total += amount
 		}
-		if hoursColumnIndex < len(line) {
+		if hoursColumnIndex != -1 && hoursColumnIndex < len(line) {
 			hours := interfaceToFloat(line[hoursColumnIndex])
 			hoursTotal += hours
 		}
@@ -151,7 +152,7 @@ func calculateInvoiceTotal(invoiceValues [][]interface{}) (invoiceTotalLine []in
 		if i == 0 {
 			invoiceTotalLine = append(invoiceTotalLine, "Total")
 		} else if i == amountColumnIndex {
-			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%v", total))
+			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%.02f", total))
 		} else if i == hoursColumnIndex {
 			invoiceTotalLine = append(invoiceTotalLine, fmt.Sprintf("%v", hoursTotal))
 		} else {
@@ -171,14 +172,14 @@ func appendOrFillAmountIfNeeded(invoiceValues [][]interface{}, hourlyRate float6
 	hoursColumnIndex := findHoursColumnIndex(invoiceValues)
 
 	if amountColumnIndex == -1 {
-		log("Can't find column with \"%v\", will append to the right column.", kAmount)
+		log("Can't find column with \"%v\", will append to the right column.\n", kAmount)
 		amountColumnIndex = len(firstLine)
 		invoiceValues[0] = append(invoiceValues[0], "Amount")
 	}
 
 	if hoursColumnIndex == -1 {
 		if amountColumnIndex == -1 {
-			log("Can't find columns with \"%v\" or \"%v\".", kAmount, kHours)
+			log("Can't find columns with \"%v\" or \"%v\".\n", kAmount, kHours)
 			return
 		}
 	}
@@ -186,7 +187,7 @@ func appendOrFillAmountIfNeeded(invoiceValues [][]interface{}, hourlyRate float6
 	for i := 1; i < len(invoiceValues); i++ {
 		line := invoiceValues[i]
 
-		if hoursColumnIndex >= len(line) {
+		if hoursColumnIndex == -1 || hoursColumnIndex >= len(line) {
 			log("Missing hours column at line %v.\n", i)
 			continue
 		}
@@ -451,15 +452,20 @@ func main() {
 	invoiceData[kGenInvoiceKey] = invoiceTableAsString
 
 	if invoiceData[kDateKey] != nil {
+        
 		dateValue := invoiceData[kDateKey]
 		if dateAsString, ok := dateValue.(string); ok {
 			date, err := time.Parse("2006-01-02", dateAsString)
 			if err != nil {
 				log("Can't parse '%v': %v\n", kDateKey, err)
 			} else {
+                var dueInDays int = 14
+                if invoiceData[kDueInDaysKey] != nil {
+                    dueInDays = invoiceData[kDueInDaysKey].(int)
+                }
 				invoiceData[kDateKey] = date.Format("20060102")
 				invoiceData[kGenDateCreatedKey] = date.Format("2 January 2006")
-				dueDate := date.AddDate(0, 0, 14)
+				dueDate := date.AddDate(0, 0, dueInDays)
 				invoiceData[kGenDateDueKey] = dueDate.Format("2 January 2006")
 			}
 		}
